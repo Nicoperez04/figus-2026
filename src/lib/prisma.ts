@@ -27,8 +27,25 @@ function getFreshOrCachedClient(): PrismaClient {
   return cached ?? createPrismaClient();
 }
 
-export const prisma = getFreshOrCachedClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function resolvePrisma(): PrismaClient {
+  const client = getFreshOrCachedClient();
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+  }
+  return client;
 }
+
+/**
+ * Inicialización perezosa: evita ejecutar createPrismaClient al cargar el módulo.
+ * En Vercel, `next build` importa este archivo sin tener aún DATABASE_URL disponible en algunos pasos.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, _receiver) {
+    const client = resolvePrisma();
+    const value = Reflect.get(client, prop, client) as unknown;
+    if (typeof value === "function") {
+      return (value as (...args: unknown[]) => unknown).bind(client);
+    }
+    return value;
+  },
+});

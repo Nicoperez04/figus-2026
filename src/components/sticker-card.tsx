@@ -1,5 +1,5 @@
 import { updateStickerQuantityAction } from "@/lib/actions";
-import type { StickerView } from "@/lib/album";
+import type { StickerView } from "@/lib/album-model";
 
 const statusStyles = {
   Falta: {
@@ -38,6 +38,12 @@ export function StickerCard({
   const styles = statusStyles[sticker.status];
   const numberLabel = sticker.code.replace(/^[A-Z]+-/, "");
   const padX = compact ? "px-3" : "px-3.5";
+  const isTeamSticker = sticker.teamName != null;
+  const showFiguritaTitle =
+    !isTeamSticker ||
+    sticker.orderInTeam == null ||
+    sticker.orderInTeam === 1 ||
+    sticker.orderInTeam === 13;
 
   return (
     <article
@@ -61,15 +67,17 @@ export function StickerCard({
           </span>
         ) : null}
       </div>
-      <h3
-        className={`${padX} text-[12.5px] font-semibold leading-tight text-slate-800 line-clamp-2 ${
-          compact ? "min-h-[2rem]" : "min-h-9"
-        }`}
-        title={sticker.title}
-      >
-        {sticker.title}
-      </h3>
-      <p className={`${padX} mt-1 text-[10px] font-medium uppercase tracking-wide ${styles.label}`}>
+      {showFiguritaTitle ? (
+        <h3
+          className={`${padX} text-[12.5px] font-semibold leading-tight text-slate-800 line-clamp-2 ${
+            compact ? "min-h-[2rem]" : "min-h-9"
+          }`}
+          title={sticker.title}
+        >
+          {sticker.title}
+        </h3>
+      ) : null}
+      <p className={`${padX} ${showFiguritaTitle ? "mt-1" : "mt-0"} text-[10px] font-medium uppercase tracking-wide ${styles.label}`}>
         {sticker.teamName ?? sticker.sectionName}
       </p>
       {showMeta ? (

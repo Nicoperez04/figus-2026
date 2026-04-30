@@ -1,6 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { Button, Input } from "@/components/ui";
-import type { StickerFilter, StickerView } from "@/lib/album";
+import { Input } from "@/components/ui";
+import type { StickerFilter, StickerView } from "@/lib/album-model";
 import { STICKER_TYPE } from "@/lib/album-types";
 
 type FilterDef = {
@@ -18,31 +20,30 @@ const filters: FilterDef[] = [
 
 export function AlbumFilters({
   current,
-  query,
+  searchQuery,
+  onSearchChange,
   totals,
 }: {
   current: StickerFilter;
-  query: string;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
   totals?: Partial<Record<StickerFilter, number>>;
 }) {
   return (
     <div className="sticky top-[68px] z-10 -mx-4 space-y-2.5 border-b border-slate-200/70 bg-(--background)/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:top-[76px]">
-      <form className="flex gap-2" action="/mi-album">
+      <div className="flex gap-2">
         <Input
-          name="q"
           type="search"
           placeholder="Buscar por número, país, grupo o nombre"
-          defaultValue={query}
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
           leftIcon={<SearchIcon />}
+          aria-label="Buscar figuritas"
         />
-        {current !== "all" ? <input type="hidden" name="filter" value={current} /> : null}
-        <Button type="submit" variant="primary" size="md" className="shrink-0">
-          Buscar
-        </Button>
-      </form>
+      </div>
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">
         {filters.map((filter) => {
-          const href = `/mi-album?filter=${filter.value}${query ? `&q=${encodeURIComponent(query)}` : ""}`;
+          const href = filter.value === "all" ? "/mi-album" : `/mi-album?filter=${filter.value}`;
           const active = current === filter.value;
           const count = totals?.[filter.value];
           return (

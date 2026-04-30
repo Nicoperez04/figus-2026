@@ -39,9 +39,12 @@ export default async function GroupsPage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {Array.from(groups.entries()).map(([group, groupTeams]) => {
-          const groupObtained = groupTeams.reduce((sum, team) => sum + team.progress.obtained, 0);
-          const groupTotal = groupTeams.reduce((sum, team) => sum + team.progress.total, 0);
+        {Array.from(groups.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([group, groupTeams]) => {
+          const sortedTeams = [...groupTeams].sort((a, b) => a.order - b.order);
+          const groupObtained = sortedTeams.reduce((sum, team) => sum + team.progress.obtained, 0);
+          const groupTotal = sortedTeams.reduce((sum, team) => sum + team.progress.total, 0);
           const groupPercent = groupTotal > 0 ? Math.round((groupObtained / groupTotal) * 100) : 0;
           return (
             <article key={group} className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 sm:p-5">
@@ -63,7 +66,7 @@ export default async function GroupsPage() {
                 <ProgressBar percent={groupPercent} height="xs" />
               </div>
               <div className="mt-4 grid gap-1.5">
-                {groupTeams.map((team) => (
+                {sortedTeams.map((team) => (
                   <Link
                     key={team.id}
                     className="group flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 transition hover:border-slate-200 hover:bg-slate-50"

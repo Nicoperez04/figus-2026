@@ -1,38 +1,28 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  applyStickerFilter,
+  calculateProgress,
+  type GroupedAlbum,
+  type SectionGroup,
+  type StickerFilter,
+  type StickerView,
+  type TeamGroup,
+} from "@/lib/album-model";
 import { ALBUM_SLUG } from "@/lib/album-template";
 import { SECTION_TYPE, STICKER_TYPE, type SectionType, type StickerType } from "@/lib/album-types";
 import { prisma } from "@/lib/prisma";
 
-export type StickerFilter = "all" | "missing" | "owned" | "repeated" | "special";
+export type {
+  GroupedAlbum,
+  SectionGroup,
+  StickerFilter,
+  StickerView,
+  TeamGroup,
+} from "@/lib/album-model";
 
-export type SectionGroup = {
-  id: string;
-  type: SectionType;
-  name: string;
-  group: string;
-  order: number;
-  stickers: StickerView[];
-  progress: ReturnType<typeof calculateProgress>;
-  teams: TeamGroup[];
-};
-
-export type TeamGroup = {
-  id: string;
-  name: string;
-  group: string;
-  countryCode: string;
-  stickers: StickerView[];
-  progress: ReturnType<typeof calculateProgress>;
-};
-
-export type GroupedAlbum = {
-  intro: SectionGroup | null;
-  groups: { letter: string; teams: TeamGroup[]; progress: ReturnType<typeof calculateProgress>; sectionId: string }[];
-  /** FWC 9–19 al final del álbum. */
-  fwcClosing: SectionGroup | null;
-};
+export { applyStickerFilter, calculateProgress, filterGroupedAlbumByQuery } from "@/lib/album-model";
 
 export const stickerWithStateInclude = {
   section: true,
@@ -42,21 +32,6 @@ export const stickerWithStateInclude = {
 export type StickerWithRelations = Prisma.StickerGetPayload<{
   include: typeof stickerWithStateInclude;
 }>;
-
-export type StickerView = {
-  id: string;
-  code: string;
-  title: string;
-  sectionName: string;
-  teamName: string | null;
-  group: string | null;
-  type: StickerType;
-  orderGlobal: number;
-  orderInTeam: number | null;
-  ownedQuantity: number;
-  repeatedQuantity: number;
-  status: "Falta" | "La tengo" | "Repetida";
-};
 
 export function toStickerView(
   sticker: StickerWithRelations,
@@ -79,16 +54,6 @@ export function toStickerView(
     repeatedQuantity,
     status: ownedQuantity === 0 ? "Falta" : repeatedQuantity > 0 ? "Repetida" : "La tengo",
   };
-}
-
-export function calculateProgress(stickers: StickerView[]) {
-  const total = stickers.length;
-  const obtained = stickers.filter((sticker) => sticker.ownedQuantity > 0).length;
-  const missing = total - obtained;
-  const repeated = stickers.reduce((sum, sticker) => sum + sticker.repeatedQuantity, 0);
-  const percent = total > 0 ? Math.round((obtained / total) * 100) : 0;
-
-  return { total, obtained, missing, repeated, percent };
 }
 
 export async function getTemplateAlbum() {
@@ -120,42 +85,6 @@ export async function ensureUserStickerRows(userId: string) {
   await prisma.userSticker.createMany({
     data: missing.map((sticker) => ({ userId, stickerId: sticker.id })),
   });
-}
-
-function normalizeForSearch(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
-export function applyStickerFilter(stickers: StickerView[], options?: { filter?: StickerFilter; query?: string }) {
-  let filtered = stickers;
-  const rawQuery = options?.query?.trim();
-  const query = rawQuery ? normalizeForSearch(rawQuery) : "";
-
-  if (query) {
-    filtered = filtered.filter((sticker) => {
-      const haystack = normalizeForSearch(
-        [sticker.code, sticker.title, sticker.group ?? "", sticker.teamName ?? "", sticker.sectionName].join(" "),
-      );
-      return haystack.includes(query);
-    });
-  }
-
-  if (options?.filter === "missing") {
-    filtered = filtered.filter((sticker) => sticker.ownedQuantity === 0);
-  } else if (options?.filter === "owned") {
-    filtered = filtered.filter((sticker) => sticker.ownedQuantity > 0);
-  } else if (options?.filter === "repeated") {
-    filtered = filtered.filter((sticker) => sticker.repeatedQuantity > 0);
-  } else if (options?.filter === "special") {
-    filtered = filtered.filter(
-      (sticker) =>
-        sticker.type === STICKER_TYPE.ESPECIAL ||
-        sticker.type === STICKER_TYPE.ESTADIO ||
-        sticker.type === STICKER_TYPE.CAMPEON,
-    );
-  }
-
-  return filtered;
 }
 
 export async function getGroupedAlbumForUser(
@@ -216,6 +145,7 @@ export async function getGroupedAlbumForUser(
             name: sticker.team.name,
             group: sticker.team.group,
             countryCode: sticker.team.countryCode,
+            order: sticker.team.order,
             stickers: [view],
             progress: calculateProgress([]),
           });
@@ -257,7 +187,7 @@ export async function getGroupedAlbumForUser(
   const groups: GroupedAlbum["groups"] = Array.from(groupSections.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([letter, data]) => {
-      const teams = Array.from(data.teams.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const teams = Array.from(data.teams.values()).sort((a, b) => a.order - b.order);
       const groupStickers = teams.flatMap((team) => team.stickers);
       const fullGroupStickers = sections
         .find((section) => section.id === data.sectionId)
@@ -374,6 +304,7 @@ export async function getGroupsForUser(userId: string) {
       name: team.name,
       group: team.group,
       countryCode: team.countryCode,
+      order: team.order,
       progress: calculateProgress(stickerViews),
     };
   });
