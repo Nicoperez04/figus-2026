@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  passwordHash  String
+  publicSlug    String        @unique
+  sessions      Session[]
+  stickers      UserSticker[]
+  friends       Friend[]      @relation("FriendOwner")
+  friendOf      Friend[]      @relation("FriendTarget")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([publicSlug])
+}
+
+model Friend {
+  id           String   @id @default(cuid())
+  userId       String
+  friendUserId String
+  createdAt    DateTime @default(now())
+  user         User     @relation("FriendOwner", fields: [userId], references: [id], onDelete: Cascade)
+  friend       User     @relation("FriendTarget", fields: [friendUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendUserId])
+  @@index([userId])
+  @@index([friendUserId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Album {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String
+  year        Int
+  isTemplate  Boolean   @default(true)
+  sections    Section[]
+  stickers    Sticker[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Section {
+  id       String    @id @default(cuid())
+  albumId  String
+  name     String
+  type     String
+  order    Int
+  group    String?
+  album    Album     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  stickers Sticker[]
+
+  @@unique([albumId, type, group])
+  @@index([albumId, order])
+}
+
+model Team {
+  id          String    @id @default(cuid())
+  group       String
+  name        String
+  countryCode String
+  order       Int
+  stickers    Sticker[]
+
+  @@unique([countryCode])
+  @@index([group, order])
+}
+
+model Sticker {
+  id             String        @id @default(cuid())
+  albumId        String
+  sectionId      String
+  teamId         String?
+  group          String?
+  code           String        @unique
+  number         Int
+  title          String
+  description    String?
+  type           String
+  orderGlobal    Int
+  orderInSection Int
+  orderInTeam    Int?
+  album          Album         @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  section        Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  team           Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  userStickers   UserSticker[]
+
+  @@index([albumId, orderGlobal])
+  @@index([sectionId, orderInSection])
+  @@index([teamId, orderInTeam])
+  @@index([group])
+}
+
+model UserSticker {
+  id               String   @id @default(cuid())
+  userId           String
+  stickerId        String
+  ownedQuantity    Int      @default(0)
+  repeatedQuantity Int      @default(0)
+  notes            String?
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sticker          Sticker  @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stickerId])
+  @@index([userId, ownedQuantity])
+  @@index([userId, repeatedQuantity])
+}
